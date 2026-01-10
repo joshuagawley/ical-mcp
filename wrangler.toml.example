@@ -1,0 +1,23 @@
+# Copy this file to wrangler.toml and configure for your deployment
+#
+# Required secrets (set via `bunx wrangler secret put <NAME>`):
+#   APPLE_ID        - Your Apple ID email address
+#   APP_PASSWORD    - App-specific password from appleid.apple.com
+#
+# Generate an app-specific password:
+#   1. Go to https://appleid.apple.com/account/manage
+#   2. Sign in and go to "App-Specific Passwords"
+#   3. Generate a new password for "ical-mcp"
+
+name = "ical-mcp"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+[durable_objects]
+bindings = [
+  { name = "MCP_SERVER", class_name = "McpServer" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["McpServer"]
