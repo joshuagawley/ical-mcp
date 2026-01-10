@@ -9,6 +9,7 @@
 import { getCredentials } from './auth/credentials';
 import { CalDAVClient } from './caldav/client';
 import { buildCalendarDiscovery } from './caldav/xml-builder';
+
 import type { Env } from './types';
 
 export class McpServer implements DurableObject {
