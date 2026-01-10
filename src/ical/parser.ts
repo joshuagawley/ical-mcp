@@ -29,15 +29,19 @@ export function parseICS(icsString: string): CalendarEvent | null {
     return null;
   }
 
+  const location = extractProperty(vevent, 'LOCATION');
+  const description = extractProperty(vevent, 'DESCRIPTION');
+  const recurrenceId = extractProperty(vevent, 'RECURRENCE-ID');
+
   return {
     uid,
     summary,
     dtstart: parseICalDate(dtstart),
     dtend: parseICalDate(dtend),
-    location: extractProperty(vevent, 'LOCATION') ?? undefined,
-    description: extractProperty(vevent, 'DESCRIPTION') ?? undefined,
+    ...(location ? { location } : {}),
+    ...(description ? { description } : {}),
     isRecurring: vevent.includes('RRULE:'),
-    recurrenceId: extractProperty(vevent, 'RECURRENCE-ID') ?? undefined,
+    ...(recurrenceId ? { recurrenceId } : {}),
   };
 }
 

@@ -71,7 +71,7 @@ export class CalDAVClient {
     const response = await fetch(url, {
       method,
       headers,
-      body,
+      ...(body !== undefined ? { body } : {}),
     });
 
     if (!response.ok) {
