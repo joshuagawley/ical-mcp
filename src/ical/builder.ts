@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Joshua Gawley
+
 /**
  * iCal (.ics) builder
  * Constructs VCALENDAR/VEVENT components for CalDAV PUT requests

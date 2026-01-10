@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Joshua Gawley
+
 /**
  * CalDAV HTTP client
  * Handles all communication with the iCloud CalDAV server

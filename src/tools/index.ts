@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Joshua Gawley
+
 /**
  * Tool registry and dispatch
  * Maps tool names to their handlers

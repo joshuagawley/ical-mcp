@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Joshua Gawley
+
 /**
  * MCP Server Durable Object
  * Handles SSE connections and dispatches tool calls

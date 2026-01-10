@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Joshua Gawley
+
 /**
  * XML parser for CalDAV responses
  * Extracts calendar data from WebDAV/CalDAV XML responses
@@ -30,11 +33,15 @@ export function parseCalendarList(xml: string): Calendar[] {
     const color = extractTag(responseXml, 'x:calendar-color');
 
     if (href && displayName) {
-      calendars.push({
+      const calendar: Calendar = {
         href,
         displayName,
-        color: color ?? undefined,
-      });
+      };
+      if (color) {
+        calendars.push({ ...calendar, color });
+      } else {
+        calendars.push(calendar);
+      }
     }
   }
 

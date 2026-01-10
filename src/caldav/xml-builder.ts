@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Joshua Gawley
+
 /**
  * XML builder for CalDAV requests
  * Constructs PROPFIND, REPORT, and other WebDAV/CalDAV XML bodies
