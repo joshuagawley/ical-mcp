@@ -62,5 +62,8 @@ export function buildTimeRangeQuery(startDate: string, endDate: string): string 
  */
 function formatCalDAVDate(isoDate: string): string {
   const date = new Date(isoDate);
-  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  return date
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}/, '');
 }

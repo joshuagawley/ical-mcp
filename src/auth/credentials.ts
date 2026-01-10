@@ -21,7 +21,9 @@ export interface Credentials {
  */
 export function getCredentials(env: Env): Credentials {
   if (!env.APPLE_ID || !env.APP_PASSWORD) {
-    throw new Error('APPLE_ID or APP_PASSWORD secret not set. Run: bunx wrangler secret put APPLE_ID');
+    throw new Error(
+      'APPLE_ID or APP_PASSWORD secret not set. Run: bunx wrangler secret put APPLE_ID'
+    );
   }
   return {
     appleId: env.APPLE_ID,
