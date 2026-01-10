@@ -3,13 +3,11 @@ main = "src/index.ts"
 compatibility_date = "2024-12-01"
 
 [durable_objects]
-bindings = [
-  { name = "MCP_SERVER", class_name = "McpServer" }
-]
+bindings = [{ name = "MCP_SERVER", class_name = "McpServer" }]
 
 [[migrations]]
 tag = "v1"
-new_classes = ["McpServer"]
+new_sqlite_classes = ["McpServer"]
 
 # Secrets (set via `bunx wrangler secret put`):
 # - APPLE_ID
