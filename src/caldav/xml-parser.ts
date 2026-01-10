@@ -23,8 +23,11 @@ export function parseCalendarList(xml: string): Calendar[] {
     const responseXml = match[1];
     if (responseXml === undefined) continue;
 
-    // Check if this is a calendar resource
-    if (!responseXml.includes('<d:resourcetype>') || !responseXml.includes('calendar')) {
+    // Check if this is a calendar resource (must have <c:calendar/> or <cal:calendar/> in resourcetype)
+    if (
+      !responseXml.includes('<d:resourcetype>') ||
+      (!responseXml.includes('<c:calendar') && !responseXml.includes('<cal:calendar'))
+    ) {
       continue;
     }
 

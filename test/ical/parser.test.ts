@@ -66,6 +66,138 @@ END:VEVENT`;
     expect(parseICS('not ical data')).toBeNull();
     expect(parseICS('BEGIN:VEVENT\nEND:VEVENT')).toBeNull(); // Missing required fields
   });
+
+  test('parses all-day events (date only, no time)', () => {
+    const ics = `BEGIN:VEVENT
+UID:allday-123@example.com
+SUMMARY:Holiday
+DTSTART;VALUE=DATE:20240101
+DTEND;VALUE=DATE:20240102
+END:VEVENT`;
+
+    const event = parseICS(ics);
+
+    expect(event).not.toBeNull();
+    expect(event?.dtstart).toBe('2024-01-01T00:00:00Z');
+    expect(event?.dtend).toBe('2024-01-02T00:00:00Z');
+  });
+
+  test('parses event with timezone parameter', () => {
+    const ics = `BEGIN:VEVENT
+UID:tz-123@example.com
+SUMMARY:Meeting with TZ
+DTSTART;TZID=America/New_York:20240115T100000
+DTEND;TZID=America/New_York:20240115T110000
+END:VEVENT`;
+
+    const event = parseICS(ics);
+
+    // Parser extracts time, assumes UTC (timezone conversion is caller's responsibility)
+    expect(event).not.toBeNull();
+    expect(event?.dtstart).toBe('2024-01-15T10:00:00Z');
+    expect(event?.dtend).toBe('2024-01-15T11:00:00Z');
+  });
+
+  test('handles escaped characters in summary', () => {
+    const ics = `BEGIN:VEVENT
+UID:escaped-123@example.com
+SUMMARY:Meeting\\, Planning\\, and Review
+DTSTART:20240115T100000Z
+DTEND:20240115T110000Z
+END:VEVENT`;
+
+    const event = parseICS(ics);
+
+    expect(event?.summary).toBe('Meeting, Planning, and Review');
+  });
+
+  test('handles escaped newlines in description', () => {
+    const ics = `BEGIN:VEVENT
+UID:multiline-123@example.com
+SUMMARY:Event
+DTSTART:20240115T100000Z
+DTEND:20240115T110000Z
+DESCRIPTION:Line 1\\nLine 2\\nLine 3
+END:VEVENT`;
+
+    const event = parseICS(ics);
+
+    expect(event?.description).toBe('Line 1\nLine 2\nLine 3');
+  });
+
+  test('handles escaped backslashes', () => {
+    // In iCal, \\ represents a single backslash
+    // In JS template literal, we need \\\\ to represent \\ in the iCal data
+    const ics = `BEGIN:VEVENT
+UID:backslash-123@example.com
+SUMMARY:Path\\\\test
+DTSTART:20240115T100000Z
+DTEND:20240115T110000Z
+END:VEVENT`;
+
+    const event = parseICS(ics);
+
+    expect(event?.summary).toBe('Path\\test');
+  });
+
+  test('parses recurrence-id for recurring event instance', () => {
+    const ics = `BEGIN:VEVENT
+UID:recurring-modified@example.com
+SUMMARY:Modified Instance
+DTSTART:20240122T090000Z
+DTEND:20240122T091500Z
+RECURRENCE-ID:20240122T090000Z
+RRULE:FREQ=WEEKLY
+END:VEVENT`;
+
+    const event = parseICS(ics);
+
+    expect(event?.isRecurring).toBe(true);
+    expect(event?.recurrenceId).toBe('20240122T090000Z');
+  });
+
+  test('handles empty optional fields gracefully', () => {
+    const ics = `BEGIN:VEVENT
+UID:minimal-123@example.com
+SUMMARY:Minimal Event
+DTSTART:20240115T100000Z
+DTEND:20240115T110000Z
+LOCATION:
+DESCRIPTION:
+END:VEVENT`;
+
+    const event = parseICS(ics);
+
+    expect(event).not.toBeNull();
+    // Empty strings should be treated as undefined/missing
+    expect(event?.location).toBeFalsy();
+    expect(event?.description).toBeFalsy();
+  });
+
+  test('parses event with CRLF line endings', () => {
+    const ics =
+      'BEGIN:VEVENT\r\nUID:crlf-123@example.com\r\nSUMMARY:CRLF Event\r\nDTSTART:20240115T100000Z\r\nDTEND:20240115T110000Z\r\nEND:VEVENT';
+
+    const event = parseICS(ics);
+
+    expect(event).not.toBeNull();
+    expect(event?.summary).toBe('CRLF Event');
+  });
+
+  test('handles folded lines (continuation with space)', () => {
+    const ics = `BEGIN:VEVENT
+UID:folded-123@example.com
+SUMMARY:This is a very long summary that has been folded across multiple
+ lines according to the iCalendar spec
+DTSTART:20240115T100000Z
+DTEND:20240115T110000Z
+END:VEVENT`;
+
+    const event = parseICS(ics);
+
+    expect(event?.summary).toContain('very long summary');
+    expect(event?.summary).toContain('multiple');
+  });
 });
 
 describe('parseMultipleICS', () => {
