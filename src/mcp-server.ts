@@ -3,12 +3,13 @@
 
 /**
  * MCP Server Durable Object
- * Handles SSE connections and dispatches tool calls
+ * Handles Streamable HTTP transport for MCP protocol
  */
 
 import { getCredentials } from './auth/credentials';
 import { CalDAVClient } from './caldav/client';
 import { buildCalendarDiscovery } from './caldav/xml-builder';
+import { handleMcpRequest, MCP_ENDPOINT } from './mcp/server';
 
 import type { Env } from './types';
 
@@ -32,12 +33,12 @@ export class McpServer implements DurableObject {
       return this.testAuth();
     }
 
-    // TODO: Implement MCP protocol handling
-    // - SSE connection setup
-    // - Tool call dispatch
-    // - Response streaming
+    // MCP protocol endpoint - Streamable HTTP transport
+    if (url.pathname === MCP_ENDPOINT) {
+      return handleMcpRequest(request, this.env);
+    }
 
-    return new Response('MCP Server - Not yet implemented', { status: 501 });
+    return new Response('Not found', { status: 404 });
   }
 
   /**

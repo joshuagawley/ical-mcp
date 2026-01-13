@@ -6,6 +6,8 @@
  * Maps tool names to their handlers
  */
 
+import { listCalendars } from './list-calendars';
+
 import type { CalDAVClient } from '../caldav/client';
 import type { ToolResult } from '../types';
 
@@ -18,9 +20,8 @@ export interface ToolHandler<TParams, TResult> {
 }
 
 // Registry of all available tools
-// TODO: Import and register tool handlers as they are implemented
 export const tools: ReadonlyMap<string, ToolHandler<unknown, unknown>> = new Map([
-  // ['list_calendars', listCalendars],
+  [listCalendars.name, listCalendars as ToolHandler<unknown, unknown>],
   // ['list_events', listEvents],
   // ['get_event', getEvent],
   // ['create_event', createEvent],
