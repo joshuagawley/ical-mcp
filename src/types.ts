@@ -50,6 +50,9 @@ export interface Calendar {
 // Cloudflare Workers environment bindings
 export interface Env {
   MCP_SERVER: DurableObjectNamespace;
-  APPLE_ID: string;
-  APP_PASSWORD: string;
+  // Legacy single-user credentials (optional with OAuth)
+  APPLE_ID?: string;
+  APP_PASSWORD?: string;
+  // OAuth encryption key for storing user credentials
+  ENCRYPTION_KEY?: string;
 }
