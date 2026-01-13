@@ -25,6 +25,24 @@ import type {
   OAuthError,
 } from '../../src/oauth/types';
 
+// Polyfill for Bun tests (Cloudflare Workers has this natively)
+if (typeof crypto.subtle.timingSafeEqual !== 'function') {
+  (crypto.subtle as unknown as { timingSafeEqual: (a: ArrayBuffer, b: ArrayBuffer) => boolean }).timingSafeEqual = (
+    a: ArrayBuffer,
+    b: ArrayBuffer
+  ): boolean => {
+    const viewA = new Uint8Array(a);
+    const viewB = new Uint8Array(b);
+    if (viewA.length !== viewB.length) return false;
+    let result = 0;
+    for (let i = 0; i < viewA.length; i++) {
+      result |= viewA[i] ^ viewB[i];
+    }
+    return result === 0;
+  };
+}
+
+
 // Mock Durable Object state for testing
 function createMockState(): {
   storage: Map<string, unknown>;
@@ -139,7 +157,7 @@ describe('OAuth Client Registration', () => {
       }
     });
 
-    it.skip('generates unique IDs', () => {
+    it('generates unique IDs', () => {
       const id1 = generateClientId();
       const id2 = generateClientId();
 
@@ -159,14 +177,14 @@ describe('OAuth Client Registration', () => {
       }
     });
 
-    it.skip('generates sufficiently long secrets', () => {
+    it('generates sufficiently long secrets', () => {
       const secret = generateClientSecret();
 
       // Should be at least 32 characters for security
       expect(secret.length).toBeGreaterThanOrEqual(32);
     });
 
-    it.skip('generates unique secrets', () => {
+    it('generates unique secrets', () => {
       const secret1 = generateClientSecret();
       const secret2 = generateClientSecret();
 
@@ -189,8 +207,7 @@ describe('OAuth Client Registration', () => {
       expect(typeof result).toBe('boolean');
     });
 
-    // These tests verify behavior once implemented
-    it.skip('returns true for matching secret', () => {
+    it('returns true for matching secret', () => {
       const client: RegisteredClient = {
         clientId: 'test-client',
         clientSecret: 'correct-secret',
@@ -204,7 +221,7 @@ describe('OAuth Client Registration', () => {
       expect(result).toBe(true);
     });
 
-    it.skip('returns false for wrong secret', () => {
+    it('returns false for wrong secret', () => {
       const client: RegisteredClient = {
         clientId: 'test-client',
         clientSecret: 'correct-secret',
@@ -231,8 +248,7 @@ describe('OAuth Client Registration', () => {
       expect(client).toBeNull();
     });
 
-    // This test verifies behavior once implemented
-    it.skip('returns client for existing client_id', async () => {
+    it('returns client for existing client_id', async () => {
       const { storage, state } = createMockState();
 
       const storedClient: RegisteredClient = {
@@ -254,31 +270,7 @@ describe('OAuth Client Registration', () => {
   });
 
   describe('handleRegister', () => {
-    it('returns 400 when validateRedirectUris fails (stub returns false)', async () => {
-      const { state } = createMockState();
-
-      const request = new Request('https://example.com/oauth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          redirect_uris: ['https://claude.ai/api/mcp/auth_callback'],
-          client_name: 'Claude',
-        } satisfies ClientRegistrationRequest),
-      });
-
-      const response = await handleRegister(
-        request,
-        state as unknown as Parameters<typeof handleRegister>[1]
-      );
-
-      // validateRedirectUris stub returns false, so we get 400
-      expect(response.status).toBe(400);
-      const body = (await response.json()) as OAuthError;
-      expect(body.error).toBe('invalid_request');
-    });
-
-    // These tests verify behavior once implemented
-    it.skip('returns 201 Created on successful registration', async () => {
+    it('returns 201 Created on successful registration', async () => {
       const { state } = createMockState();
 
       const request = new Request('https://example.com/oauth/register', {
@@ -298,7 +290,7 @@ describe('OAuth Client Registration', () => {
       expect(response.status).toBe(201);
     });
 
-    it.skip('returns client_id and client_secret', async () => {
+    it('returns client_id and client_secret', async () => {
       const { state } = createMockState();
 
       const request = new Request('https://example.com/oauth/register', {
@@ -322,7 +314,7 @@ describe('OAuth Client Registration', () => {
       expect(typeof body.client_secret).toBe('string');
     });
 
-    it.skip('stores registered client in storage', async () => {
+    it('stores registered client in storage', async () => {
       const { storage, state } = createMockState();
 
       const request = new Request('https://example.com/oauth/register', {
@@ -346,7 +338,7 @@ describe('OAuth Client Registration', () => {
       expect(storedClient.clientId).toBe(body.client_id);
     });
 
-    it.skip('echoes back redirect_uris', async () => {
+    it('echoes back redirect_uris', async () => {
       const { state } = createMockState();
       const redirectUris = [
         'https://claude.ai/api/mcp/auth_callback',
@@ -371,7 +363,7 @@ describe('OAuth Client Registration', () => {
       expect(body.redirect_uris).toEqual(redirectUris);
     });
 
-    it.skip('sets default grant_types and response_types', async () => {
+    it('sets default grant_types and response_types', async () => {
       const { state } = createMockState();
 
       const request = new Request('https://example.com/oauth/register', {
@@ -393,7 +385,7 @@ describe('OAuth Client Registration', () => {
       expect(body.response_types).toContain('code');
     });
 
-    it.skip('returns error for invalid redirect_uri', async () => {
+    it('returns error for invalid redirect_uri', async () => {
       const { state } = createMockState();
 
       const request = new Request('https://example.com/oauth/register', {
@@ -415,7 +407,7 @@ describe('OAuth Client Registration', () => {
       expect(body.error).toBe('invalid_request');
     });
 
-    it.skip('returns error for missing redirect_uris', async () => {
+    it('returns error for missing redirect_uris', async () => {
       const { state } = createMockState();
 
       const request = new Request('https://example.com/oauth/register', {
