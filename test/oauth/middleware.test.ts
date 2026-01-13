@@ -14,32 +14,10 @@ import {
   hasBearerToken,
   createUnauthorizedResponse,
 } from '../../src/oauth/middleware';
+import { encrypt } from '../../src/oauth/crypto';
 
 import type { UserSession, UserCredentials } from '../../src/oauth/types';
-
-// Mock Durable Object state for testing
-function createMockState(): {
-  storage: Map<string, unknown>;
-  state: {
-    storage: {
-      get: (key: string) => Promise<unknown>;
-      put: (key: string, value: unknown) => Promise<void>;
-    };
-  };
-} {
-  const storage = new Map<string, unknown>();
-  return {
-    storage,
-    state: {
-      storage: {
-        get: async (key: string) => storage.get(key),
-        put: async (key: string, value: unknown) => {
-          storage.set(key, value);
-        },
-      },
-    },
-  };
-}
+import { createMockState, TEST_ENCRYPTION_KEY } from './helpers';
 
 describe('OAuth Middleware', () => {
   describe('hasBearerToken', () => {
@@ -86,19 +64,7 @@ describe('OAuth Middleware', () => {
   });
 
   describe('extractBearerToken', () => {
-    it('returns null (stub)', () => {
-      const request = new Request('https://example.com/mcp', {
-        headers: { Authorization: 'Bearer my-token-123' },
-      });
-
-      const token = extractBearerToken(request);
-
-      // Stub returns null
-      expect(token).toBeNull();
-    });
-
-    // These tests verify behavior once implemented
-    it.skip('extracts token from valid header', () => {
+    it('extracts token from valid header', () => {
       const request = new Request('https://example.com/mcp', {
         headers: { Authorization: 'Bearer my-token-123' },
       });
@@ -108,7 +74,7 @@ describe('OAuth Middleware', () => {
       expect(token).toBe('my-token-123');
     });
 
-    it.skip('returns null for missing header', () => {
+    it('returns null for missing header', () => {
       const request = new Request('https://example.com/mcp');
 
       const token = extractBearerToken(request);
@@ -116,7 +82,7 @@ describe('OAuth Middleware', () => {
       expect(token).toBeNull();
     });
 
-    it.skip('returns null for non-Bearer auth', () => {
+    it('returns null for non-Bearer auth', () => {
       const request = new Request('https://example.com/mcp', {
         headers: { Authorization: 'Basic dXNlcjpwYXNz' },
       });
@@ -126,7 +92,7 @@ describe('OAuth Middleware', () => {
       expect(token).toBeNull();
     });
 
-    it.skip('handles tokens with special characters', () => {
+    it('handles tokens with special characters', () => {
       const request = new Request('https://example.com/mcp', {
         headers: { Authorization: 'Bearer abc_123-XYZ.token' },
       });
@@ -173,28 +139,27 @@ describe('OAuth Middleware', () => {
   });
 
   describe('validateToken', () => {
-    it('returns invalid result (stub)', async () => {
+    it('returns invalid for unknown token', async () => {
       const { state } = createMockState();
 
       const request = new Request('https://example.com/mcp', {
-        headers: { Authorization: 'Bearer valid-token' },
+        headers: { Authorization: 'Bearer unknown-token' },
       });
 
       const result = await validateToken(
         request,
-        state as unknown as Parameters<typeof validateToken>[1]
+        state as unknown as Parameters<typeof validateToken>[1],
+        TEST_ENCRYPTION_KEY
       );
 
-      // Stub returns invalid
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.error).toBe('OAuth not implemented');
-        expect(result.status).toBe(501);
+        expect(result.error).toBe('Invalid token');
+        expect(result.status).toBe(401);
       }
     });
 
-    // These tests verify behavior once implemented
-    it.skip('returns valid result with credentials for valid token', async () => {
+    it('returns valid result with credentials for valid token', async () => {
       const { storage, state } = createMockState();
 
       // Store session
@@ -209,11 +174,11 @@ describe('OAuth Middleware', () => {
       };
       storage.set('session:valid-access-token', session);
 
-      // Store user credentials
+      // Store user credentials with actual encryption
       const userCredentials: UserCredentials = {
         userId: 'user-123',
-        appleId: 'encrypted-apple-id',
-        appPassword: 'encrypted-password',
+        appleId: await encrypt('test@icloud.com', TEST_ENCRYPTION_KEY),
+        appPassword: await encrypt('app-specific-password', TEST_ENCRYPTION_KEY),
         createdAt: Date.now() - 10000,
         updatedAt: Date.now() - 10000,
       };
@@ -225,26 +190,28 @@ describe('OAuth Middleware', () => {
 
       const result = await validateToken(
         request,
-        state as unknown as Parameters<typeof validateToken>[1]
+        state as unknown as Parameters<typeof validateToken>[1],
+        TEST_ENCRYPTION_KEY
       );
 
       expect(result.valid).toBe(true);
       if (result.valid) {
         expect(result.credentials).toBeDefined();
-        expect(result.credentials.appleId).toBeDefined();
-        expect(result.credentials.appSpecificPassword).toBeDefined();
+        expect(result.credentials.appleId).toBe('test@icloud.com');
+        expect(result.credentials.appSpecificPassword).toBe('app-specific-password');
         expect(result.userId).toBe('user-123');
       }
     });
 
-    it.skip('returns invalid for missing token', async () => {
+    it('returns invalid for missing token', async () => {
       const { state } = createMockState();
 
       const request = new Request('https://example.com/mcp');
 
       const result = await validateToken(
         request,
-        state as unknown as Parameters<typeof validateToken>[1]
+        state as unknown as Parameters<typeof validateToken>[1],
+        TEST_ENCRYPTION_KEY
       );
 
       expect(result.valid).toBe(false);
@@ -253,26 +220,7 @@ describe('OAuth Middleware', () => {
       }
     });
 
-    it.skip('returns invalid for unknown token', async () => {
-      const { state } = createMockState();
-
-      const request = new Request('https://example.com/mcp', {
-        headers: { Authorization: 'Bearer unknown-token' },
-      });
-
-      const result = await validateToken(
-        request,
-        state as unknown as Parameters<typeof validateToken>[1]
-      );
-
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.error).toContain('Invalid');
-        expect(result.status).toBe(401);
-      }
-    });
-
-    it.skip('returns invalid for expired token', async () => {
+    it('returns invalid for expired token', async () => {
       const { storage, state } = createMockState();
 
       const session: UserSession = {
@@ -292,7 +240,8 @@ describe('OAuth Middleware', () => {
 
       const result = await validateToken(
         request,
-        state as unknown as Parameters<typeof validateToken>[1]
+        state as unknown as Parameters<typeof validateToken>[1],
+        TEST_ENCRYPTION_KEY
       );
 
       expect(result.valid).toBe(false);
@@ -302,7 +251,7 @@ describe('OAuth Middleware', () => {
       }
     });
 
-    it.skip('returns invalid when user credentials not found', async () => {
+    it('returns invalid when user credentials not found', async () => {
       const { storage, state } = createMockState();
 
       // Session exists but user doesn't
@@ -324,7 +273,8 @@ describe('OAuth Middleware', () => {
 
       const result = await validateToken(
         request,
-        state as unknown as Parameters<typeof validateToken>[1]
+        state as unknown as Parameters<typeof validateToken>[1],
+        TEST_ENCRYPTION_KEY
       );
 
       expect(result.valid).toBe(false);
@@ -333,7 +283,7 @@ describe('OAuth Middleware', () => {
       }
     });
 
-    it.skip('updates lastUsedAt timestamp', async () => {
+    it('updates lastUsedAt timestamp', async () => {
       const { storage, state } = createMockState();
 
       const originalLastUsed = Date.now() - 10000;
@@ -350,8 +300,8 @@ describe('OAuth Middleware', () => {
 
       storage.set('user:user-123', {
         userId: 'user-123',
-        appleId: 'encrypted',
-        appPassword: 'encrypted',
+        appleId: await encrypt('test@icloud.com', TEST_ENCRYPTION_KEY),
+        appPassword: await encrypt('password', TEST_ENCRYPTION_KEY),
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -360,14 +310,14 @@ describe('OAuth Middleware', () => {
         headers: { Authorization: 'Bearer active-token' },
       });
 
-      await validateToken(request, state as unknown as Parameters<typeof validateToken>[1]);
+      await validateToken(request, state as unknown as Parameters<typeof validateToken>[1], TEST_ENCRYPTION_KEY);
 
       // Check that lastUsedAt was updated
       const updatedSession = storage.get('session:active-token') as UserSession;
       expect(updatedSession.lastUsedAt).toBeGreaterThan(originalLastUsed);
     });
 
-    it.skip('decrypts credentials before returning', async () => {
+    it('decrypts credentials before returning', async () => {
       const { storage, state } = createMockState();
 
       const session: UserSession = {
@@ -381,11 +331,11 @@ describe('OAuth Middleware', () => {
       };
       storage.set('session:token-for-decrypt', session);
 
-      // In real implementation, these would be encrypted
+      // Credentials stored with actual encryption
       const userCredentials: UserCredentials = {
         userId: 'user-123',
-        appleId: 'ENCRYPTED:test@icloud.com',
-        appPassword: 'ENCRYPTED:app-password',
+        appleId: await encrypt('test@icloud.com', TEST_ENCRYPTION_KEY),
+        appPassword: await encrypt('app-password', TEST_ENCRYPTION_KEY),
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -397,10 +347,12 @@ describe('OAuth Middleware', () => {
 
       const result = await validateToken(
         request,
-        state as unknown as Parameters<typeof validateToken>[1]
+        state as unknown as Parameters<typeof validateToken>[1],
+        TEST_ENCRYPTION_KEY
       );
 
       // Should return decrypted credentials
+      expect(result.valid).toBe(true);
       if (result.valid) {
         expect(result.credentials.appleId).toBe('test@icloud.com');
         expect(result.credentials.appSpecificPassword).toBe('app-password');
