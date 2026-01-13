@@ -197,8 +197,7 @@ export interface UserCredentials {
  * Stored temporarily during OAuth flow
  */
 export interface PendingAuthorization {
-  readonly authorizationCode: AuthorizationCode;
-  readonly state: 'pending_credentials' | 'completed';
+  readonly params: AuthorizationRequest;
   readonly createdAt: number;
 }
 
