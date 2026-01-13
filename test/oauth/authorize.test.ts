@@ -14,45 +14,21 @@ import {
   parseAuthorizationRequest,
   validateICloudCredentials,
   generateUserId,
-  generateAuthorizationCode,
   generatePendingId,
-  renderAuthorizePage,
 } from '../../src/oauth/authorize';
+import { renderAuthorizePage } from '../../src/oauth/templates';
+import { generateSecureToken } from '../../src/oauth/utils';
 
 import type { OAuthError } from '../../src/oauth/types';
-import { generateEncryptionKey } from '../../src/oauth/crypto';
 
-// Test encryption key
-const testEncryptionKey = generateEncryptionKey();
-
-// Store original fetch for restoration
-const originalFetch = globalThis.fetch;
-
-// Mock Durable Object state for testing
-function createMockState(): {
-  storage: Map<string, unknown>;
-  state: {
-    storage: {
-      get: (key: string) => Promise<unknown>;
-      put: (key: string, value: unknown) => Promise<void>;
-      delete: (key: string) => Promise<boolean>;
-    };
-  };
-} {
-  const storage = new Map<string, unknown>();
-  return {
-    storage,
-    state: {
-      storage: {
-        get: async (key: string) => storage.get(key),
-        put: async (key: string, value: unknown) => {
-          storage.set(key, value);
-        },
-        delete: async (key: string) => storage.delete(key),
-      },
-    },
-  };
-}
+import {
+  createMockState,
+  createCalDAVFetchMock,
+  installFetchMock,
+  restoreFetch,
+  TEST_ENCRYPTION_KEY,
+  VALID_CREDENTIALS,
+} from './helpers';
 
 describe('OAuth Authorization', () => {
   describe('parseAuthorizationRequest', () => {
@@ -123,32 +99,15 @@ describe('OAuth Authorization', () => {
 
   describe('validateICloudCredentials', () => {
     beforeEach(() => {
-      // Mock fetch for CalDAV PROPFIND requests
-      (globalThis as { fetch: typeof fetch }).fetch = (async (
-        input: RequestInfo | URL,
-        init?: RequestInit
-      ) => {
-        const url = typeof input === 'string' ? input : input.toString();
-        if (url.includes('caldav.icloud.com')) {
-          // Get auth header from init.headers
-          const headers = init?.headers as Record<string, string> | undefined;
-          const authHeader = headers?.['Authorization'] ?? '';
-          if (authHeader.includes(btoa('valid@icloud.com:valid-app-password'))) {
-            return new Response('', { status: 207 });
-          }
-          // Return 401 for invalid credentials
-          return new Response('', { status: 401 });
-        }
-        return originalFetch(input, init);
-      }) as typeof fetch;
+      installFetchMock(createCalDAVFetchMock());
     });
 
     afterEach(() => {
-      globalThis.fetch = originalFetch;
+      restoreFetch();
     });
 
     it('returns true for valid credentials', async () => {
-      const result = await validateICloudCredentials('valid@icloud.com', 'valid-app-password');
+      const result = await validateICloudCredentials(VALID_CREDENTIALS.appleId, VALID_CREDENTIALS.appPassword);
 
       expect(result).toBe(true);
     });
@@ -160,9 +119,9 @@ describe('OAuth Authorization', () => {
     });
 
     it('returns false on network error', async () => {
-      (globalThis as { fetch: typeof fetch }).fetch = (async () => {
+      installFetchMock((async () => {
         throw new Error('Network error');
-      }) as unknown as typeof fetch;
+      }) as unknown as typeof fetch);
 
       const result = await validateICloudCredentials('test@icloud.com', 'password');
 
@@ -191,23 +150,23 @@ describe('OAuth Authorization', () => {
     });
   });
 
-  describe('generateAuthorizationCode', () => {
+  describe('generateSecureToken (authorization codes)', () => {
     it('generates sufficiently long codes', () => {
-      const code = generateAuthorizationCode();
+      const code = generateSecureToken(32);
 
       // Should be at least 32 characters for security
       expect(code.length).toBeGreaterThanOrEqual(32);
     });
 
     it('generates unique codes', () => {
-      const code1 = generateAuthorizationCode();
-      const code2 = generateAuthorizationCode();
+      const code1 = generateSecureToken(32);
+      const code2 = generateSecureToken(32);
 
       expect(code1).not.toBe(code2);
     });
 
     it('generates URL-safe codes (base64url)', () => {
-      const code = generateAuthorizationCode();
+      const code = generateSecureToken(32);
 
       // base64url uses only alphanumeric, hyphen, underscore (no + / =)
       expect(code).toMatch(/^[a-zA-Z0-9_-]+$/);
@@ -231,11 +190,14 @@ describe('OAuth Authorization', () => {
 
   describe('renderAuthorizePage', () => {
     it('returns HTML string', () => {
-      const html = renderAuthorizePage('pending-123', {
-        response_type: 'code',
-        client_id: 'test-client',
-        redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
-        state: 'state',
+      const html = renderAuthorizePage({
+        pendingId: 'pending-123',
+        params: {
+          response_type: 'code',
+          client_id: 'test-client',
+          redirect_uri: 'https://claude.ai/api/mcp/auth_callback',
+          state: 'state',
+        },
       });
 
       expect(typeof html).toBe('string');
@@ -245,11 +207,14 @@ describe('OAuth Authorization', () => {
 
     // These tests verify behavior once implemented
     it('includes form with Apple ID and password fields', () => {
-      const html = renderAuthorizePage('pending-123', {
-        response_type: 'code',
-        client_id: 'test-client',
-        redirect_uri: 'https://claude.ai/callback',
-        state: 'state',
+      const html = renderAuthorizePage({
+        pendingId: 'pending-123',
+        params: {
+          response_type: 'code',
+          client_id: 'test-client',
+          redirect_uri: 'https://claude.ai/callback',
+          state: 'state',
+        },
       });
 
       expect(html).toContain('apple_id');
@@ -258,11 +223,14 @@ describe('OAuth Authorization', () => {
     });
 
     it('includes hidden pending_id field', () => {
-      const html = renderAuthorizePage('pending-abc-123', {
-        response_type: 'code',
-        client_id: 'test-client',
-        redirect_uri: 'https://claude.ai/callback',
-        state: 'state',
+      const html = renderAuthorizePage({
+        pendingId: 'pending-abc-123',
+        params: {
+          response_type: 'code',
+          client_id: 'test-client',
+          redirect_uri: 'https://claude.ai/callback',
+          state: 'state',
+        },
       });
 
       expect(html).toContain('pending-abc-123');
@@ -270,26 +238,29 @@ describe('OAuth Authorization', () => {
     });
 
     it('displays error message when provided', () => {
-      const html = renderAuthorizePage(
-        'pending-123',
-        {
+      const html = renderAuthorizePage({
+        pendingId: 'pending-123',
+        params: {
           response_type: 'code',
           client_id: 'test-client',
           redirect_uri: 'https://claude.ai/callback',
           state: 'state',
         },
-        'Invalid credentials. Please try again.'
-      );
+        error: 'Invalid credentials. Please try again.',
+      });
 
       expect(html).toContain('Invalid credentials');
     });
 
     it('includes link to Apple app-specific passwords page', () => {
-      const html = renderAuthorizePage('pending-123', {
-        response_type: 'code',
-        client_id: 'test-client',
-        redirect_uri: 'https://claude.ai/callback',
-        state: 'state',
+      const html = renderAuthorizePage({
+        pendingId: 'pending-123',
+        params: {
+          response_type: 'code',
+          client_id: 'test-client',
+          redirect_uri: 'https://claude.ai/callback',
+          state: 'state',
+        },
       });
 
       expect(html).toContain('appleid.apple.com');
@@ -407,30 +378,18 @@ describe('OAuth Authorization', () => {
   describe('handleAuthorizeSubmit (POST)', () => {
     // Mock fetch for credential validation
     beforeEach(() => {
-      (globalThis as { fetch: typeof fetch }).fetch = (async (
-        input: RequestInfo | URL,
-        init?: RequestInit
-      ) => {
-        const url = typeof input === 'string' ? input : input.toString();
-        if (url.includes('caldav.icloud.com')) {
-          const headers = init?.headers as Record<string, string> | undefined;
-          const authHeader = headers?.['Authorization'] ?? '';
-          // "valid" credentials return 207
-          if (
-            authHeader.includes(btoa('valid@icloud.com:valid-app-password')) ||
-            authHeader.includes(btoa('user@icloud.com:secret-password')) ||
-            authHeader.includes(btoa('user@icloud.com:password'))
-          ) {
-            return new Response('', { status: 207 });
-          }
-          return new Response('', { status: 401 });
-        }
-        return originalFetch(input, init);
-      }) as typeof fetch;
+      // Mock CalDAV with multiple valid credential pairs for different test scenarios
+      installFetchMock(
+        createCalDAVFetchMock([
+          `${VALID_CREDENTIALS.appleId}:${VALID_CREDENTIALS.appPassword}`,
+          'user@icloud.com:secret-password',
+          'user@icloud.com:password',
+        ])
+      );
     });
 
     afterEach(() => {
-      globalThis.fetch = originalFetch;
+      restoreFetch();
     });
 
     it('returns error for invalid pending_id', async () => {
@@ -449,7 +408,7 @@ describe('OAuth Authorization', () => {
       const response = await handleAuthorizeSubmit(
         request,
         state as unknown as Parameters<typeof handleAuthorizeSubmit>[1],
-        testEncryptionKey
+        TEST_ENCRYPTION_KEY
       );
 
       expect(response.status).toBe(400);
@@ -484,7 +443,7 @@ describe('OAuth Authorization', () => {
       const response = await handleAuthorizeSubmit(
         request,
         state as unknown as Parameters<typeof handleAuthorizeSubmit>[1],
-        testEncryptionKey
+        TEST_ENCRYPTION_KEY
       );
 
       expect(response.status).toBe(302);
@@ -520,7 +479,7 @@ describe('OAuth Authorization', () => {
       await handleAuthorizeSubmit(
         request,
         state as unknown as Parameters<typeof handleAuthorizeSubmit>[1],
-        testEncryptionKey
+        TEST_ENCRYPTION_KEY
       );
 
       // Should have stored user credentials
@@ -554,7 +513,7 @@ describe('OAuth Authorization', () => {
       await handleAuthorizeSubmit(
         request,
         state as unknown as Parameters<typeof handleAuthorizeSubmit>[1],
-        testEncryptionKey
+        TEST_ENCRYPTION_KEY
       );
 
       // Should have stored authorization code
@@ -588,7 +547,7 @@ describe('OAuth Authorization', () => {
       await handleAuthorizeSubmit(
         request,
         state as unknown as Parameters<typeof handleAuthorizeSubmit>[1],
-        testEncryptionKey
+        TEST_ENCRYPTION_KEY
       );
 
       // Pending should be deleted
@@ -621,7 +580,7 @@ describe('OAuth Authorization', () => {
       const response = await handleAuthorizeSubmit(
         request,
         state as unknown as Parameters<typeof handleAuthorizeSubmit>[1],
-        testEncryptionKey
+        TEST_ENCRYPTION_KEY
       );
 
       // Should return the form again with an error message
@@ -659,7 +618,7 @@ describe('OAuth Authorization', () => {
       await handleAuthorizeSubmit(
         request,
         state as unknown as Parameters<typeof handleAuthorizeSubmit>[1],
-        testEncryptionKey
+        TEST_ENCRYPTION_KEY
       );
 
       // Authorization code should include code_challenge

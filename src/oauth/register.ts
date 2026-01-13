@@ -9,12 +9,12 @@
  * Each Claude user gets a unique client registration.
  */
 
-import { STORAGE_KEYS } from './types';
-
-import type { RegisteredClient, OAuthError } from './types';
-import type { ClientRegistrationRequest, ClientRegistrationResponse } from './types';
 import type { DurableObjectState } from '@cloudflare/workers-types';
-import { Buffer } from 'node:buffer';
+
+import type { RegisteredClient, OAuthError, ClientRegistrationRequest, ClientRegistrationResponse } from './types';
+import { STORAGE_KEYS } from './types';
+import { ALLOWED_REDIRECT_URIS } from './constants';
+import { generateSecureToken } from './utils';
 
 /**
  * Handle POST /oauth/register
@@ -107,8 +107,7 @@ export function generateClientId(): string {
  * Generate a cryptographically secure client secret
  */
 export function generateClientSecret(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return Buffer.from(bytes).toString('base64url');
+  return generateSecureToken(32);
 }
 
 /**
@@ -121,21 +120,15 @@ export function validateRedirectUris(uris: readonly string[]): boolean {
     return false;
   }
 
-  const ALLOWED_CALLBACKS = [
-    'https://claude.ai/api/mcp/auth_callback',
-    'https://claude.com/api/mcp/auth_callback',
-  ];
-
-
-  return uris.every(uri => {
+  return uris.every((uri) => {
     if (!URL.canParse(uri)) {
       return false;
     }
     const parsed = new URL(uri);
-    // Must be either be localhost (for development)
-    // or is HTTPS and in allowlist
+    // Must be either localhost (for development)
+    // or HTTPS and in allowlist (O(1) Set lookup)
     return parsed.hostname === 'localhost'
-      || (parsed.protocol === 'https:' && ALLOWED_CALLBACKS.includes(uri));
+      || (parsed.protocol === 'https:' && ALLOWED_REDIRECT_URIS.has(uri));
   });
 }
 

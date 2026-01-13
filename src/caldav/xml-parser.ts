@@ -82,12 +82,14 @@ function extractTag(xml: string, tagName: string): string | null {
 
 /**
  * Unescape common XML entities
+ * Note: &amp; must be unescaped last to prevent double-unescaping
+ * (e.g., &amp;lt; -> &lt; -> <)
  */
 function unescapeXml(str: string): string {
   return str
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'");
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
 }
