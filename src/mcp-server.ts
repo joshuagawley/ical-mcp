@@ -64,7 +64,13 @@ export class McpServer implements DurableObject {
 
     // Authorization - POST /oauth/authorize (submit credentials)
     if (url.pathname === '/oauth/authorize' && method === 'POST') {
-      return handleAuthorizeSubmit(request, this.state);
+      if (!this.env.ENCRYPTION_KEY) {
+        return new Response(JSON.stringify({ error: 'server_error', error_description: 'ENCRYPTION_KEY not configured' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return handleAuthorizeSubmit(request, this.state, this.env.ENCRYPTION_KEY);
     }
 
     // Token - POST /oauth/token

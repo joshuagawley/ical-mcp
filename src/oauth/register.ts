@@ -121,10 +121,12 @@ export function validateRedirectUris(uris: readonly string[]): boolean {
   }
 
   return uris.every((uri) => {
-    if (!URL.canParse(uri)) {
+    let parsed: URL;
+    try {
+      parsed = new URL(uri);
+    } catch {
       return false;
     }
-    const parsed = new URL(uri);
     // Must be either localhost (for development)
     // or HTTPS and in allowlist (O(1) Set lookup)
     return parsed.hostname === 'localhost'

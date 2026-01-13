@@ -36,7 +36,7 @@ if (typeof crypto.subtle.timingSafeEqual !== 'function') {
     if (viewA.length !== viewB.length) return false;
     let result = 0;
     for (let i = 0; i < viewA.length; i++) {
-      result |= viewA[i] ^ viewB[i];
+      result |= (viewA[i] ?? 0) ^ (viewB[i] ?? 0);
     }
     return result === 0;
   };

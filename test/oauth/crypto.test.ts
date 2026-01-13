@@ -116,7 +116,11 @@ describe('OAuth Crypto', () => {
       const encrypted = await encrypt('secret', testKey);
       // Flip a bit in the ciphertext
       const tampered = Buffer.from(encrypted, 'base64');
-      tampered[tampered.length - 1] ^= 0x01;
+      const lastIndex = tampered.length - 1;
+      const lastByte = tampered[lastIndex];
+      if (lastByte !== undefined) {
+        tampered[lastIndex] = lastByte ^ 0x01;
+      }
       const tamperedBase64 = tampered.toString('base64');
 
       await expect(decrypt(tamperedBase64, testKey)).rejects.toThrow();
