@@ -9,7 +9,12 @@
 import { getCredentials } from '../auth/credentials';
 import { CalDAVClient } from '../caldav/client';
 
-import { createJsonRpcError, parseJsonRpcMessage, routeRequest } from './protocol';
+import {
+  createJsonRpcError,
+  MCP_PROTOCOL_VERSION,
+  parseJsonRpcMessage,
+  routeRequest,
+} from './protocol';
 
 import type { Env } from '../types';
 
@@ -21,6 +26,16 @@ export const MCP_ENDPOINT = '/mcp';
  */
 export async function handleMcpRequest(request: Request, env: Env): Promise<Response> {
   const method = request.method;
+
+  // Handle HEAD requests - Claude.ai uses this to check protocol version
+  if (method === 'HEAD') {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        'MCP-Protocol-Version': MCP_PROTOCOL_VERSION,
+      },
+    });
+  }
 
   // Handle GET requests - for server-initiated SSE streams
   if (method === 'GET') {

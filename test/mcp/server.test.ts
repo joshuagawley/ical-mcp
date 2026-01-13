@@ -192,6 +192,19 @@ describe('MCP Server HTTP Handler', () => {
     });
   });
 
+  describe('HEAD /mcp', () => {
+    it('returns protocol version header', async () => {
+      const request = new Request('https://example.com/mcp', {
+        method: 'HEAD',
+      });
+
+      const response = await handleMcpRequest(request, createMockEnv());
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('MCP-Protocol-Version')).toBe('2024-11-05');
+    });
+  });
+
   describe('GET /mcp', () => {
     it('returns 405 Method Not Allowed (SSE not supported yet)', async () => {
       const request = new Request('https://example.com/mcp', {
