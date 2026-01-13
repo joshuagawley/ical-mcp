@@ -3,25 +3,35 @@
 
 /**
  * MCP Server Durable Object
- * Handles Streamable HTTP transport for MCP protocol
+ * Handles Streamable HTTP transport for MCP protocol with OAuth authentication
  */
 
 import { getCredentials } from './auth/credentials';
 import { CalDAVClient } from './caldav/client';
 import { buildCalendarDiscovery } from './caldav/xml-builder';
 import { handleMcpRequest, MCP_ENDPOINT } from './mcp/server';
+import {
+  handleDiscovery,
+  handleRegister,
+  handleAuthorize,
+  handleAuthorizeSubmit,
+  handleToken,
+} from './oauth';
 
 import type { Env } from './types';
 
 export class McpServer implements DurableObject {
+  private readonly state: DurableObjectState;
   private readonly env: Env;
 
-  constructor(_state: DurableObjectState, env: Env) {
+  constructor(state: DurableObjectState, env: Env) {
+    this.state = state;
     this.env = env;
   }
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    const method = request.method;
 
     // Health check endpoint
     if (url.pathname === '/health') {
@@ -33,8 +43,43 @@ export class McpServer implements DurableObject {
       return this.testAuth();
     }
 
+    // =========================================================================
+    // OAuth Endpoints
+    // =========================================================================
+
+    // OAuth Discovery - GET /.well-known/oauth-authorization-server
+    if (url.pathname === '/.well-known/oauth-authorization-server' && method === 'GET') {
+      return handleDiscovery(request);
+    }
+
+    // Dynamic Client Registration - POST /oauth/register
+    if (url.pathname === '/oauth/register' && method === 'POST') {
+      return handleRegister(request, this.state);
+    }
+
+    // Authorization - GET /oauth/authorize (show form)
+    if (url.pathname === '/oauth/authorize' && method === 'GET') {
+      return handleAuthorize(request, this.state);
+    }
+
+    // Authorization - POST /oauth/authorize (submit credentials)
+    if (url.pathname === '/oauth/authorize' && method === 'POST') {
+      return handleAuthorizeSubmit(request, this.state);
+    }
+
+    // Token - POST /oauth/token
+    if (url.pathname === '/oauth/token' && method === 'POST') {
+      return handleToken(request, this.state);
+    }
+
+    // =========================================================================
+    // MCP Protocol Endpoint
+    // =========================================================================
+
     // MCP protocol endpoint - Streamable HTTP transport
     if (url.pathname === MCP_ENDPOINT) {
+      // TODO: Add OAuth token validation here when implemented
+      // For now, fall back to legacy single-user credentials
       return handleMcpRequest(request, this.env);
     }
 
